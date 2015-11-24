@@ -9,6 +9,7 @@ class Process:
     def __init__(self, spec):
         self.pid, self.arrival_t, self.burst_t, self.n_burst, self.io_t, self.memory = spec
 
+        self.init_arrival_t = self.arrival_t
         self.n_burst_rmn = self.n_burst
         self.burst_t_rmn = self.burst_t
         self.waiting_t = 0
@@ -18,6 +19,7 @@ class Process:
         self.total_turnaround_t = 0
 
     def reset(self):
+        self.arrival_t = self.init_arrival_t
         self.n_burst_rmn = self.n_burst
         self.burst_t_rmn = self.burst_t
         self.waiting_t = 0
@@ -169,10 +171,9 @@ def srt(events, timer, waiting_processes, cpu_process, io_list, cs, t_cs, memory
             cpu_process.append(process)
             print("time %dms: Process '%s' started using the CPU " % (timer, process.pid), end='')
             print_queue(waiting_processes)
-
-            if timer + process.burst_t_rmn not in events:
-                events[timer + process.burst_t_rmn] = {}
-            events[timer + process.burst_t_rmn]['pc'] = True
+            # if timer + process.burst_t_rmn not in events:
+            #     events[timer + process.burst_t_rmn] = {}
+            # events[timer + process.burst_t_rmn]['pc'] = True
 
     if 'pc' in event and cpu_process and cpu_process[0].burst_t_rmn == 0:
         process = cpu_process.pop()
@@ -180,6 +181,9 @@ def srt(events, timer, waiting_processes, cpu_process, io_list, cs, t_cs, memory
         if process.n_burst_rmn == 0:
             print("time %dms: Process '%s' terminated " % (timer, process.pid), end='')
             print_queue(waiting_processes)
+            memory.deallocate(process.pid)
+            print("time %dms: Simulated Memory:" % timer)
+            print(memory)
         else:
             print("time %dms: Process '%s' completed its CPU burst " % (timer, process.pid), end='')
             print_queue(waiting_processes)
@@ -265,6 +269,7 @@ def main():
 
     n = 0
     t_cs = 13
+    t_memmove = 10
 
     waiting_processes = deque([])   # a queue to store waiting processes
     io_list = []                    # a list to store processes using I/O
@@ -272,6 +277,7 @@ def main():
     cs = []
     all_process = []
     memory = Memory(256)
+    defrag_t = []
 
     for line in f:
         line = line.rstrip()
@@ -297,11 +303,18 @@ def main():
     events = {0: {}}
     print("time %dms: Simulator started for SRT and %s" % (timer, Memory.algorithm))
     while True:
+        if defrag_t and timer == defrag_t[-1] + 1:
+            print("time %dms: Completed defragmentation (moved %d memory units)" % (timer, len(defrag_t) / t_memmove))
+            print("time %dms: Simulated Memory:" % timer)
+            print(memory)
         for p in all_process:
             if p.arrival_t == timer:
-                waiting_processes.append(p)
+                if timer in defrag_t:
+                    p.arrival_t = defrag_t
+                    continue
                 if memory.place(p.pid, p.memory):
-                    print("time %dms: Process '%s' added to system " % (timer, p.pid), end='')
+                    waiting_processes.append(p)
+                    print("time %dms: Process '%s' added to system" % (timer, p.pid), end='')
                     print_queue(waiting_processes)
                     print("time %dms: Simulated Memory:" % timer)
                     print(memory)
@@ -313,6 +326,8 @@ def main():
                     print("time %dms: Starting defragmentation (suspending all processes)" % timer)
                     print("time %dms: Simulated Memory:" % timer)
                     print(memory)
+                    defrag_t = range(timer, timer + t_memmove * memory.defrag())
+                    p.arrival_t = defrag_t[-1] + 1
         if timer in events:
             srt(events, timer, waiting_processes, cpu_process, io_list, cs, t_cs, memory)
         if not waiting_processes and not cpu_process and not io_list and not cs:
@@ -322,7 +337,14 @@ def main():
         for p in waiting_processes:
             p.waiting_t += 1
         for p in cpu_process:
-            p.burst_t_rmn -= 1
+            if timer in defrag_t:
+                p.waiting_t += 1
+            else:
+                p.burst_t_rmn -= 1
+                if p.burst_t_rmn == 0:
+                    if timer + 1 not in events:
+                        events[timer + 1] = {}
+                    events[timer + 1]['pc'] = True
         timer += 1
 
     # r.write('Algorithm SRT\n')
