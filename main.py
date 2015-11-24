@@ -21,7 +21,7 @@ class Proccess:
       self.io_time = int(proc[4])
       self.wait = 0
       self.memory = int(proc[5])
-      self.in_mem = 0;
+      self.in_mem = 0
 
 class Io:
     def __init__(self,index,time):
@@ -42,20 +42,20 @@ def print_queue(queue,proc_list):
 ##############################
 def get_next_interest_srt(burst_time_remain,switching,current_time):
     global io_list,time,proc_list_SRT
-    t_time = 999;
+    t_time = 999
     for item in proc_list_SRT:
-        if (item.arrival_time > time):
+        if item.arrival_time > time:
             t_time = min(item.arrival_time - time,t_time)
-    if (current_burst != -1):
+    if current_burst != -1:
         t_time = min(burst_time_remain, t_time)
-    elif (switching == 0 and  not q_burst ):#all burst queue finished
+    elif switching == 0 and  not q_burst:#all burst queue finished
         t_time= min(io_list[0].time, t_time)
-    elif (switching == 0):
+    elif switching == 0:
         t_time=min(burst_time_remain,t_time)
     else:
         t_time=min( switching,t_time)
     for item in io_list:
-        if (item.time < t_time):
+        if item.time < t_time:
             t_time = item.time
     
     return t_time
@@ -73,8 +73,8 @@ def time_pass_srt(t_time):
         stat_turnaround += t_time
     stat_turnaround += len(q_burst) * t_time
     #system check
-    for item in range(0, len(proc_list_SRT)):
-        if(item.arrival_time == time):
+    for item in proc_list_SRT:
+        if item.arrival_time == time:
             q_burst.append(item)
     q_burst.sort(key = lambda a:proc_list_SRT[a].burst_time_remain)
 
@@ -84,21 +84,21 @@ def time_pass_srt(t_time):
             if (q_burst):
                 stat_waittime += (len(q_burst)-1)*t_cs
                 stat_cs+=1
-                #add new proccess
+                #add new process
                 current_burst = q_burst.pop(0)
                 burst_time_remain=proc_list_SRT[current_burst].burst_time_remain
                 print "time "+ str(time) + "ms: P"+str(proc_list_SRT[current_burst].proc_num) +" started using the CPU "+print_queue(q_burst,proc_list_SRT)
-                add_proc =1;
+                add_proc =1
 
     if (burst_time_remain != 0 and add_proc==0):
         stat_waittime += len(q_burst)*t_time
         burst_time_remain =int( burst_time_remain) - t_time
         proc_list_SRT[current_burst].burst_time_remain -=t_time
         stat_burst_time+=t_time
-        if (burst_time_remain == 0):        #burst finished
+        if burst_time_remain == 0:        #burst finished
             proc_list_SRT[current_burst].num_burst-=1
             #move to io list if have IO process
-            if(proc_list_SRT[current_burst].io_time != 0 and proc_list_SRT[current_burst].num_burst > 0):
+            if proc_list_SRT[current_burst].io_time != 0 and proc_list_SRT[current_burst].num_burst > 0:
                 io_item = Io(current_burst,proc_list_SRT[current_burst].io_time)
                 io_list.append(io_item)
                 skip_io_flag=1
@@ -108,27 +108,27 @@ def time_pass_srt(t_time):
 
             #no IO process
             #move to the end of the queue if still have num burst
-            elif(proc_list_SRT[current_burst].num_burst > 1):
+            elif proc_list_SRT[current_burst].num_burst > 1:
                 q_burst.append(current_burst)
                 print "time "+ str(time) + "ms: P"+"completed its CPU burst "+print_queue(q_burst,proc_list_SRT)
             #terminate if neither have io time nor burst trail
             else:
                 print "time "+ str(time) + "ms: P"+str(proc_list_SRT[current_burst].proc_num) + " terminated "+print_queue(q_burst,proc_list_SRT)
-            if (q_burst):
+            if q_burst:
                 switching = t_cs #reques a new context switch
-            if (q_burst and q_burst[0]==current_burst):
+            if q_burst and q_burst[0]==current_burst:
                 switching = 0
             current_burst = -1
 
     #IO procedure
     i=0
-    while (i < len(io_list)):
-        if (skip_io_flag == 0 or io_list[i]!=io_list[-1] ):
+    while i < len(io_list):
+        if skip_io_flag == 0 or io_list[i]!=io_list[-1]:
             io_list[i].time-=(t_time)
         #io finished
-        if (io_list[i].time == 0):
+        if io_list[i].time == 0:
             index= io_list[i].index 
-            if (proc_list_SRT[index].num_burst == 0):
+            if proc_list_SRT[index].num_burst == 0:
                 #process terminate
                 print "time "+ str(time) + "ms: P"+str(proc_list_SRT[index].proc_num) + " terminated "+print_queue(q_burst,proc_list_SRT)
             
@@ -137,7 +137,7 @@ def time_pass_srt(t_time):
                 proc_list_SRT[index].burst_time_remain = proc_list_SRT[index].burst_time
                 #check preempted
                 preempt = 0
-                if (proc_list_SRT[index].burst_time_remain < proc_list_SRT[current_burst].burst_time_remain):
+                if proc_list_SRT[index].burst_time_remain < proc_list_SRT[current_burst].burst_time_remain:
                     print "time "+ str(time) + "ms: P"+str(proc_list_SRT[index].proc_num)+" completed I/O "+print_queue(q_burst,proc_list_SRT)
                     q_burst.append(index)
                     q_burst.append(current_burst)
@@ -203,11 +203,11 @@ if __name__ == "__main__":
     #start sim
     print "time "+str(time)+"ms: Simulator started for SRT " +print_queue(q_burst,proc_list_SRT)
     for item in range(0, len(proc_list_SRT)):
-        if(item.arrival_time == 0):
+        if item.arrival_time == 0:
             q_burst.append(item)
     q_burst.sort(key = lambda a:proc_list_SRT[a].burst_time_remain)
 
-    while (q_burst or io_list or current_burst != -1):
+    while q_burst or io_list or current_burst != -1:
         t=get_next_interest_srt(burst_time_remain,switching);
         time_pass_srt(t);
     #end sim
@@ -243,14 +243,14 @@ def add_memory(p, memory_map,algor,previous = 0):
     global m_map
     start_loc = -1
     end_loc =-1
-    if (algor == 0):    #first fit
+    if algor == 0:    #first fit
         i = 0
-        while (i<256):
-            if (i == '.' and start_loc = -1):   #locate start
+        while i<256:
+            if i == '.' and start_loc == -1:   #locate start
                 start_loc = i
-            if (start_loc != -1 and i != '.'):  #locate end
+            if start_loc != -1 and i != '.':  #locate end
                 end_loc = i 
-                if (end_loc - start_loc >= p.memory):     #long enough to hold
+                if end_loc - start_loc >= p.memory:     #long enough to hold
                     add_memory_exec(start_loc, p)
                     return start_loc + p.memory 
                 else:   #not long enough
@@ -258,54 +258,54 @@ def add_memory(p, memory_map,algor,previous = 0):
                     end_loc = -1
 
             i+=1
-        if (start_loc != -1 and end_loc == -1):
+        if start_loc != -1 and end_loc == -1:
             end_loc =256
-        if (end_loc - start_loc >= p.memory):     #long enough to hold
+        if end_loc - start_loc >= p.memory:     #long enough to hold
             add_memory_exec(start_loc,p)
             return start_loc + p.memory 
 
-    if (algor == 1)    #next fit
+    if algor == 1:  #next fit
         i = previous
-        while (i<256):
-            if (i == '.' and start_loc = -1):   #locate start
+        while i<256:
+            if i == '.' and start_loc == -1:   #locate start
                 start_loc = i
-            if (start_loc != -1 and i != '.'):  #locate end
+            if start_loc != -1 and i != '.':  #locate end
                 end_loc = i
-                if (end_loc - start_loc >= p.memory):     #long enough to hold
+                if end_loc - start_loc >= p.memory:     #long enough to hold
                     add_memory_exec(start_loc, p)
                     return start_loc + p.memory
                 else:   #not long enough
                     start_loc = -1
                     end_loc = -1
-        if (start_loc != -1 and end_loc == -1):
+        if start_loc != -1 and end_loc == -1:
             end_loc =256
-        if (end_loc - start_loc >= p.memory):     #long enough to hold
+        if end_loc - start_loc >= p.memory:     #long enough to hold
             add_memory_exec(start_loc,p)
             return start_loc + p.memory
         #start from head
         i =0
-        while (i<previous):
-            if (i == '.' and start_loc = -1):   #locate start
-                start_loc = i;
-            if (start_loc != -1 and i != '.'):  #locate end
+        while i<previous:
+            if i == '.' and start_loc == -1:   #locate start
+                start_loc = i
+            if start_loc != -1 and i != '.':  #locate end
                 end_loc = i
-                if (end_loc - start_loc >= p.memory):     #long enough to hold
+                if end_loc - start_loc >= p.memory:     #long enough to hold
                     add_memory_exec(start_loc,p)
                     return start_loc + p.memory
                 else:   #not long enough
                     start_loc = -1
                     end_loc = -1
 
-    if (algor ==2)  #best fit
+    if algor ==2:  #best fit
         start_l =[]
         end_l = []
         i = 0
-        while (i<256):
-            if (i == '.' and start_loc = -1):   #locate start
+        while i<256:
+            if i == '.' and start_loc == -1:   #locate start
                 start_loc = i
-            if (start_loc != -1 and i != '.'):  #locate end
+            if start_loc != -1 and i != '.':  #locate end
                 end_loc = i 
-                if (end_loc - start_loc >= p.memory):     #long enough to hold
+                if end_loc - start_loc >= p.memory:     #long enough to hold
                     start_l.append(start_loc)
                     end_l.append(end_loc)
                 else:   #not long enough
@@ -313,22 +313,22 @@ def add_memory(p, memory_map,algor,previous = 0):
                     end_loc = -1
 
             i+=1
-        if (start_loc != -1 and end_loc == -1):
+        if start_loc != -1 and end_loc == -1:
             end_loc =256
-        if (end_loc - start_loc >= p.memory):     #long enough to hold
+        if end_loc - start_loc >= p.memory:     #long enough to hold
             start_l.append(start_loc)
             end_l.append(end_loc)
 
-        if (len(start_l)>0):
+        if len(start_l)>0:
             suitable = 0
             for i in range(0,len(start_l)):
-                if (end_l[i]-start_l[i] < end_l[suitable]-start_l[suitable]):
+                if end_l[i]-start_l[i] < end_l[suitable]-start_l[suitable]:
                     suitable = i
             add_memory_exec(start_l[suitable],p)
             return start_l[suitable]+p.memory
 
     #not yet return, meaning no enough space
-    return -1;  #return -1 for defrag signal
+    return -1  #return -1 for defrag signal
 
 #sub function of add_memory
 def add_memory_exec(start_loc, p):
@@ -341,7 +341,7 @@ def add_memory_exec(start_loc, p):
 def remove_memory(p):
     global m_map
     for i in range(0,256):
-        if (m_map[i] == p.proc_num):
+        if m_map[i] == p.proc_num:
             m_map[i] = '.'
 
 
@@ -350,15 +350,15 @@ def remove_memory(p):
 #return the cost of defrag
 def defrag():
     global m_map
-    back_up=[];
+    back_up=[]
     for i in range(0,256):
-        if (m_map[i]!='.'):
+        if m_map[i]!= '.':
             back_up.append(m_map[i])
-    while (len(back_up)!=256):
+    while len(back_up)!=256:
         back_up.append('.')
     count =0
     for i in range(0,256):
-        if (back_up[i]!= '.' and back_up[i]!=m_map[i]):
-            count++
+        if back_up[i]!= '.' and back_up[i]!=m_map[i]:
+            count += 1
     m_map = back_up
     return count
