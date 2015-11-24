@@ -7,11 +7,10 @@ class Process:
     n_cs = 0
 
     def __init__(self, spec):
-        self.pid, self.burst_t, self.n_burst, self.io_t, self.pri = spec
+        self.pid, self.arrival_t, self.burst_t, self.n_burst, self.io_t, self.memory = spec
 
         self.n_burst_rmn = self.n_burst
         self.burst_t_rmn = self.burst_t
-        self.curr_pri = self.pri
         self.waiting_t = 0
         self.total_waiting_t = 0
         self.queue_n = -1
@@ -21,7 +20,6 @@ class Process:
     def reset(self):
         self.n_burst_rmn = self.n_burst
         self.burst_t_rmn = self.burst_t
-        self.curr_pri = self.pri
         self.waiting_t = 0
         self.total_waiting_t = 0
         self.ent_queue_t = 0
@@ -42,14 +40,85 @@ class Process:
         if self.algorithm == 'SRT':
             return self.burst_t_rmn < other.burst_t_rmn or \
                    (self.burst_t_rmn == other.burst_t_rmn and self.pid < other.pid)
-        elif self.algorithm == 'PWA':
-            return self.curr_pri < other.curr_pri or \
-                   (self.curr_pri == other.curr_pri and self.queue_n < other.queue_n)
         else:
             return self.pid < other.pid
 
     def __eq__(self, other):
         return self.pid == other.pid
+
+
+class Memory:
+    algorithm = 'first-fit'
+
+    def __init__(self, size):
+        self.size = size
+        self.map = []
+        for i in range(size):
+            self.map.append('.')
+        self.process_list = []
+
+    def __str__(self):
+        rc = '=' * 32 + '\n'
+        for i in range(self.size):
+            rc += self.map[i]
+            if i % 32 == 31:
+                rc += '\n'
+        rc += '=' * 32 + '\n'
+        return rc
+
+    def next_free_partitions(self, i, p_size):
+        start = end = -1
+        j = i
+        while end - start < p_size and j < i + self.size:
+            while j != i + self.size and self.map[j % self.size] != '.':
+                j += 1
+            if self.map[j % self.size] == '.':
+                start = j % self.size
+                while j % self.size + 1 != self.size and self.map[(j + 1) % self.size] == '.':
+                    j += 1
+                end = j % self.size
+            j += 1
+        if end - start >= p_size:
+            return start, end
+        else:
+            return -1, -1
+
+    def place(self, p_name, p_size):
+        if self.algorithm == 'first-fit':
+            start, end = self.next_free_partitions(0, p_size)
+            if start == -1:
+                return False
+            else:
+                for i in range(p_size):
+                    self.map[i + start] = p_name
+                self.process_list.append([p_name, start, p_size])
+
+    def deallocate(self, p_name):
+        for i in range(self.size):
+            if self.map[i] == p_name:
+                self.map[i] = '.'
+        for i in range(len(self.process_list)):
+            if self.process_list[i][0] == p_name:
+                self.process_list.pop(i)
+                break
+
+    def defrag(self):
+        backup = []
+        for i in range(self.size):
+            if self.map[i] != '.':
+                backup.append(self.map[i])
+        while len(backup) < self.size:
+            backup.append('.')
+        count = i = 0
+        while backup[i] == self.map[i] and backup[i] != '.':
+            i += 1
+        while i < self.size:
+            if backup[i] != '.':
+                count += 1
+            i += 1
+        self.map = backup
+        return count
+
 
 
 # print the status of queue
@@ -182,14 +251,15 @@ def main():
     cpu_process = []                # a list to store process using CPU
     cs = []
     all_process = []
+    memory = Memory(256)
 
     for line in f:
         line = line.rstrip()
         if line == '' or line[0] == '#':
             continue
-        process_spec = [int(s) for s in line.split('|')]
-
-        if len(process_spec) != 5:
+        process_spec = [int(s) if s.isdigit() else s for s in line.split('|')]
+        print(process_spec)
+        if len(process_spec) != 6:
             sys.exit("Invalid input format")
 
         process = Process(process_spec)
@@ -197,6 +267,7 @@ def main():
         waiting_processes.append(process)
         n += 1
 
+    """
     Process.algorithm = "SRT"
     Process.n_cs = 0
     waiting_processes = []
@@ -212,7 +283,6 @@ def main():
     while True:
         if timer in events:
             srt(events, timer, waiting_processes, cpu_process, io_list, cs, t_cs)
-            # print(timer, events)
         if not waiting_processes and not cpu_process and not io_list and not cs:
             print("time %dms: Simulator for SRT ended " % timer, end='')
             print_queue(waiting_processes)
@@ -225,7 +295,7 @@ def main():
 
     # r.write('Algorithm SRT\n')
     # analysis(all_process, r)
-
+    """
     f.close()
 
 
