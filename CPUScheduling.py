@@ -48,7 +48,7 @@ class Process:
 
 
 class Memory:
-    algorithm = 'first-fit'
+    algorithm = 'First-Fit'
 
     def __init__(self, size):
         self.size = size
@@ -63,7 +63,7 @@ class Memory:
             rc += self.map[i]
             if i % 32 == 31:
                 rc += '\n'
-        rc += '=' * 32 + '\n'
+        rc += '=' * 32
         return rc
 
     def next_free_partitions(self, i, p_size):
@@ -84,14 +84,21 @@ class Memory:
             return -1, -1
 
     def place(self, p_name, p_size):
-        if self.algorithm == 'first-fit':
+        start = end = -1
+        if self.algorithm == 'First-Fit':
             start, end = self.next_free_partitions(0, p_size)
-            if start == -1:
-                return False
-            else:
-                for i in range(p_size):
-                    self.map[i + start] = p_name
-                self.process_list.append([p_name, start, p_size])
+        if self.algorithm == 'Next-Fit':
+            i = 0
+            if self.process_list:
+                i = self.process_list[-1][1] + self.process_list[-1][2]
+            start, end = self.next_free_partitions(i, p_size)
+        if start == -1:
+            return False
+        else:
+            for i in range(p_size):
+                self.map[i + start] = p_name
+            self.process_list.append([p_name, start, p_size])
+            return True
 
     def deallocate(self, p_name):
         for i in range(self.size):
@@ -130,24 +137,37 @@ def print_queue(q):
     print(rc)
 
 
-def srt(events, timer, waiting_processes, cpu_process, io_list, cs, t_cs):
+def srt(events, timer, waiting_processes, cpu_process, io_list, cs, t_cs, memory):
     event = events[timer]
-    if 'ss' in event:
-        print("time %dms: Simulator started for SRT " % timer, end='')
-        print_queue(waiting_processes)
-        process = waiting_processes.pop(0)
-        cs.append(process)
+    if 'pa' in event:
+        waiting_processes.sort()
+        process = waiting_processes[0]
+        if not cpu_process:
+            process = waiting_processes.pop(0)
+            cs.append(process)
+            if timer + t_cs not in events:
+                events[timer + t_cs] = {}
+            events[timer + t_cs]['ps'] = True
+        elif cpu_process and process.burst_t < cpu_process[0].burst_t_rmn:
+            process = waiting_processes.pop(0)
+            print_queue(waiting_processes)
+            process2 = cpu_process.pop()
+            waiting_processes.append(process2)
+            waiting_processes.sort()
+            cs.append(process)
+            print("time %dms: Process '%s' preempted by Process '%s' " % (timer, process2.pid, process.pid), end='')
+            print_queue(waiting_processes)
+            if timer + t_cs not in events:
+                events[timer + t_cs] = {}
+            events[timer + t_cs]['ps'] = True
 
-        if timer + t_cs not in events:
-            events[timer + t_cs] = {}
-        events[timer + t_cs]['ps'] = True
 
     if 'ps' in event:
         if cs and not cpu_process:
             process = cs.pop()
             Process.n_cs += 1
             cpu_process.append(process)
-            print("time %dms: P%d started using the CPU " % (timer, process.pid), end='')
+            print("time %dms: Process '%s' started using the CPU " % (timer, process.pid), end='')
             print_queue(waiting_processes)
 
             if timer + process.burst_t_rmn not in events:
@@ -158,10 +178,10 @@ def srt(events, timer, waiting_processes, cpu_process, io_list, cs, t_cs):
         process = cpu_process.pop()
         process.finish(timer)
         if process.n_burst_rmn == 0:
-            print("time %dms: P%d terminated " % (timer, process.pid), end='')
+            print("time %dms: Process '%s' terminated " % (timer, process.pid), end='')
             print_queue(waiting_processes)
         else:
-            print("time %dms: P%d completed its CPU burst " % (timer, process.pid), end='')
+            print("time %dms: Process '%s' completed its CPU burst " % (timer, process.pid), end='')
             print_queue(waiting_processes)
             if process.io_t == 0:
                 waiting_processes.append(process)
@@ -169,7 +189,7 @@ def srt(events, timer, waiting_processes, cpu_process, io_list, cs, t_cs):
                 waiting_processes.sort()
             else:
                 io_list.append(process)
-                print("time %dms: P%d performing I/O " % (timer, process.pid), end='')
+                print("time %dms: Process '%s' performing I/O " % (timer, process.pid), end='')
                 print_queue(waiting_processes)
                 if timer + process.io_t not in events:
                     events[timer + process.io_t] = {}
@@ -191,7 +211,7 @@ def srt(events, timer, waiting_processes, cpu_process, io_list, cs, t_cs):
                     waiting_processes.append(process)
                     process.ent_queue_t = timer
                     waiting_processes.sort()
-                    print("time %dms: P%d completed I/O " % (timer, process.pid), end='')
+                    print("time %dms: Process '%s' completed I/O " % (timer, process.pid), end='')
 
                     if not cpu_process and not cs:
                         print_queue(waiting_processes)
@@ -208,7 +228,7 @@ def srt(events, timer, waiting_processes, cpu_process, io_list, cs, t_cs):
                         waiting_processes.append(process2)
                         waiting_processes.sort()
                         cs.append(process)
-                        print("time %dms: P%d preempted by P%d " % (timer, process2.pid, process.pid), end='')
+                        print("time %dms: Process '%s' preempted by Process '%s' " % (timer, process2.pid, process.pid), end='')
                         print_queue(waiting_processes)
                         if timer + t_cs not in events:
                             events[timer + t_cs] = {}
@@ -267,22 +287,34 @@ def main():
         waiting_processes.append(process)
         n += 1
 
-    """
     Process.algorithm = "SRT"
     Process.n_cs = 0
     waiting_processes = []
-    for process in all_process:
-        process.reset()
-        waiting_processes.append(process)
     waiting_processes.sort()
     print()
 
     timer = 0
     events = {0: {}}
-    events[0]['ss'] = True
+    print("time %dms: Simulator started for SRT and %s" % (timer, Memory.algorithm))
     while True:
+        for p in all_process:
+            if p.arrival_t == timer:
+                waiting_processes.append(p)
+                if memory.place(p.pid, p.memory):
+                    print("time %dms: Process '%s' added to system " % (timer, p.pid), end='')
+                    print_queue(waiting_processes)
+                    print("time %dms: Simulated Memory:" % timer)
+                    print(memory)
+                    if timer not in events:
+                        events[timer] = {}
+                    events[timer]['pa'] = True
+                else:
+                    print("time %dms: Process '%s' unable to be added; lack of memory " % (timer, p.pid))
+                    print("time %dms: Starting defragmentation (suspending all processes)" % timer)
+                    print("time %dms: Simulated Memory:" % timer)
+                    print(memory)
         if timer in events:
-            srt(events, timer, waiting_processes, cpu_process, io_list, cs, t_cs)
+            srt(events, timer, waiting_processes, cpu_process, io_list, cs, t_cs, memory)
         if not waiting_processes and not cpu_process and not io_list and not cs:
             print("time %dms: Simulator for SRT ended " % timer, end='')
             print_queue(waiting_processes)
@@ -295,7 +327,7 @@ def main():
 
     # r.write('Algorithm SRT\n')
     # analysis(all_process, r)
-    """
+
     f.close()
 
 
