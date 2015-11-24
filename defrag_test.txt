@@ -1,0 +1,10 @@
+# example simulator input file for project 3
+#
+# <proc-num>|<arrival-time>|<burst-time>|<num-burst>|<io-time>|<memory>
+#
+A|0|30|1|30|50
+B|0|400|1|100|50
+C|0|400|1|100|50
+D|0|400|1|100|50
+E|0|400|1|100|50
+F|300|300|2|100|48
