@@ -15,6 +15,7 @@ class Process:
         self.waiting_t = 0
         self.total_waiting_t = 0
         self.queue_n = -1
+        self.slice_rmn = 80
         self.ent_queue_t = 0
         self.total_turnaround_t = 0
 
@@ -67,6 +68,12 @@ class Memory:
                 rc += '\n'
         rc += '=' * 32
         return rc
+
+    def reset(self):
+        self.map.clear()
+        for i in range(self.size):
+            self.map.append('.')
+        self.process_list.clear()
 
     def next_free_partitions(self, i, p_size):
         start = end = -1
@@ -239,19 +246,6 @@ def srt(events, timer, waiting_processes, cpu_process, io_list, cs, t_cs, memory
                         if timer + t_cs not in events:
                             events[timer + t_cs] = {}
                         events[timer + t_cs]['ps'] = True
-
-                    elif cpu_process and process.burst_t < cpu_process[0].burst_t_rmn and timer not in defrag_t:
-                        process = waiting_processes.pop(0)
-                        print_queue(waiting_processes)
-                        process2 = cpu_process.pop()
-                        waiting_processes.append(process2)
-                        waiting_processes.sort()
-                        cs.append(process)
-                        print("time %dms: Process '%s' preempted by Process '%s' " % (timer, process2.pid, process.pid), end='')
-                        print_queue(waiting_processes)
-                        if timer + t_cs not in events:
-                            events[timer + t_cs] = {}
-                        events[timer + t_cs]['ps'] = True
                     else:
                         print_queue(waiting_processes)
 
@@ -278,12 +272,100 @@ def analysis(all_process, f):
     f.write('-- total number of context switches: %d\n\n' % Process.n_cs)
 
 
+def rr(events, timer, waiting_processes, cpu_process, io_list, cs, t_cs, t_slice, memory, defrag_t):
+    event = events[timer]
+    if 'pa' in event:
+        process = waiting_processes[0]
+        if not cpu_process:
+            process = waiting_processes.pop(0)
+            cs.append(process)
+            if timer + t_cs not in events:
+                events[timer + t_cs] = {}
+            events[timer + t_cs]['ps'] = True
+
+    if 'ps' in event:
+        if cs and not cpu_process:
+            process = cs.pop()
+            Process.n_cs += 1
+            cpu_process.append(process)
+            process.slice_rmn = t_slice
+            print("time %dms: Process '%s' started using the CPU " % (timer, process.pid), end='')
+            print_queue(waiting_processes)
+
+    if 'slice' in event:
+        process = cpu_process.pop()
+        waiting_processes.append(process)
+        print("time %dms: Process '%s' preempted due to time slice expiration" % (timer, process.pid), end='')
+        print_queue(waiting_processes)
+        if waiting_processes:
+            process2 = waiting_processes.pop(0)
+            cs.append(process2)
+            if timer + t_cs not in events:
+                events[timer + t_cs] = {}
+            events[timer + t_cs]['ps'] = True
+
+    if 'pc' in event and cpu_process and cpu_process[0].burst_t_rmn == 0:
+        process = cpu_process.pop()
+        process.finish(timer)
+        if process.n_burst_rmn == 0:
+            print("time %dms: Process '%s' terminated " % (timer, process.pid), end='')
+            print_queue(waiting_processes)
+            memory.deallocate(process.pid)
+            print("time %dms: Simulated Memory:" % timer)
+            print(memory)
+        else:
+            print("time %dms: Process '%s' completed its CPU burst " % (timer, process.pid), end='')
+            print_queue(waiting_processes)
+            if process.io_t == 0:
+                waiting_processes.append(process)
+                process.ent_queue_t = timer
+            else:
+                io_list.append(process)
+                print("time %dms: Process '%s' performing I/O " % (timer, process.pid), end='')
+                print_queue(waiting_processes)
+                if timer + process.io_t not in events:
+                    events[timer + process.io_t] = {}
+                    events[timer + process.io_t]['ioe'] = [process.pid]
+                else:
+                    events[timer + process.io_t]['ioe'].append(process.pid)
+                    events[timer + process.io_t]['ioe'].sort()
+        if waiting_processes:
+            process2 = waiting_processes.pop(0)
+            cs.append(process2)
+            if timer + t_cs not in events:
+                events[timer + t_cs] = {}
+            events[timer + t_cs]['ps'] = True
+
+    if 'ioe' in event:
+        for pid in event['ioe']:
+            for process in io_list:
+                if process.pid == pid:
+                    waiting_processes.append(process)
+                    process.ent_queue_t = timer
+                    print("time %dms: Process '%s' completed I/O " % (timer, process.pid), end='')
+
+                    if not cpu_process and not cs:
+                        print_queue(waiting_processes)
+                        process2 = waiting_processes.pop(0)
+                        cs.append(process2)
+                        if timer + t_cs not in events:
+                            events[timer + t_cs] = {}
+                        events[timer + t_cs]['ps'] = True
+
+                    else:
+                        print_queue(waiting_processes)
+
+                    io_list.remove(process)
+                    break
+
+
 def main():
     f = open('processes.txt', 'r')
     r = open('simout.txt', 'w')
 
     n = 0
     t_cs = 13
+    t_slice = 80
     t_memmove = 10
 
     waiting_processes = deque([])   # a queue to store waiting processes
@@ -366,6 +448,70 @@ def main():
 
     # r.write('Algorithm SRT\n')
     # analysis(all_process, r)
+
+    Process.algorithm = 'RR'
+    Process.n_cs = 0
+    waiting_processes = []
+    for process in all_process:
+        process.reset()
+    memory.reset()
+
+    timer = 0
+    events.clear()
+    events = {0: {}}
+    print("time %dms: Simulator started for RR (t_slice 80) and %s" % (timer, Memory.algorithm))
+    while True:
+        if defrag_t and timer == defrag_t[-1] + 1:
+            defrag_t = []
+            print("time %dms: Completed defragmentation (moved %d memory units)" % (timer, len(defrag_t) / t_memmove))
+            print("time %dms: Simulated Memory:" % timer)
+            print(memory)
+        for p in all_process:
+            if p.arrival_t == timer:
+                if timer in defrag_t:
+                    p.arrival_t = defrag_t
+                    continue
+                if memory.place(p.pid, p.memory):
+                    waiting_processes.append(p)
+                    print("time %dms: Process '%s' added to system" % (timer, p.pid), end='')
+                    print_queue(waiting_processes)
+                    print("time %dms: Simulated Memory:" % timer)
+                    print(memory)
+                    if timer not in events:
+                        events[timer] = {}
+                    events[timer]['pa'] = True
+                else:
+                    print("time %dms: Process '%s' unable to be added; lack of memory " % (timer, p.pid))
+                    print("time %dms: Starting defragmentation (suspending all processes)" % timer)
+                    print("time %dms: Simulated Memory:" % timer)
+                    print(memory)
+                    defrag_t = range(timer, timer + t_memmove * memory.defrag())
+                    print(defrag_t)
+                    p.arrival_t = defrag_t[-1] + 1
+        if timer in events:
+            rr(events, timer, waiting_processes, cpu_process, io_list, cs, t_cs, t_slice, memory, defrag_t)
+        if not waiting_processes and not cpu_process and not io_list and not cs:
+            print("time %dms: Simulator for RR ended " % timer, end='')
+            print_queue(waiting_processes)
+            break
+        for p in waiting_processes:
+            p.waiting_t += 1
+        for p in cpu_process:
+            if timer in defrag_t:
+                p.waiting_t += 1
+            else:
+                p.burst_t_rmn -= 1
+                p.slice_rmn -= 1
+                if p.burst_t_rmn == 0:
+                    if timer + 1 not in events:
+                        events[timer + 1] = {}
+                    events[timer + 1]['pc'] = True
+                elif p.slice_rmn == 0:
+                    if timer + 1 not in events:
+                        events[timer + 1] = {}
+                    events[timer + 1]['slice'] = True
+        timer += 1
+
 
     f.close()
 
