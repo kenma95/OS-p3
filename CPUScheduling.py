@@ -51,7 +51,7 @@ class Process:
 
 
 class Memory:
-    algorithm = 'Best-Fit'
+    algorithm = ''
 
     def __init__(self, size):
         self.size = size
@@ -371,8 +371,9 @@ def main():
     t_cs = 13
     t_slice = 80
     t_memmove = 10
+    placement_algorithm = ['First-Fit', 'Next-Fit', 'Best-Fit']
 
-    waiting_processes = deque([])   # a queue to store waiting processes
+    waiting_processes = []   # a queue to store waiting processes
     io_list = []                    # a list to store processes using I/O
     cpu_process = []                # a list to store process using CPU
     cs = []
@@ -396,126 +397,140 @@ def main():
 
     Process.algorithm = "SRT"
     Process.n_cs = 0
-    waiting_processes = []
-    waiting_processes.sort()
-    print()
-
-    timer = 0
     events = {0: {}}
-    print("time %dms: Simulator started for SRT and %s" % (timer, Memory.algorithm))
-    while True:
-        if defrag_t and timer == defrag_t[-1] + 1:
-            defrag_t = []
-            print("time %dms: Completed defragmentation (moved %d memory units)" % (timer, len(defrag_t) / t_memmove))
-            print("time %dms: Simulated Memory:" % timer)
-            print(memory)
-        for p in all_process:
-            if p.arrival_t == timer:
-                if timer in defrag_t:
-                    p.arrival_t = defrag_t
-                    continue
-                if memory.place(p.pid, p.memory):
-                    waiting_processes.append(p)
-                    print("time %dms: Process '%s' added to system" % (timer, p.pid), end='')
-                    print_queue(waiting_processes)
-                    print("time %dms: Simulated Memory:" % timer)
-                    print(memory)
-                    if timer not in events:
-                        events[timer] = {}
-                    events[timer]['pa'] = True
-                else:
-                    print("time %dms: Process '%s' unable to be added; lack of memory " % (timer, p.pid))
-                    print("time %dms: Starting defragmentation (suspending all processes)" % timer)
-                    print("time %dms: Simulated Memory:" % timer)
-                    print(memory)
-                    defrag_t = range(timer, timer + t_memmove * memory.defrag())
-                    print(defrag_t)
-                    p.arrival_t = defrag_t[-1] + 1
-        if timer in events:
-            srt(events, timer, waiting_processes, cpu_process, io_list, cs, t_cs, memory, defrag_t)
-        if not waiting_processes and not cpu_process and not io_list and not cs:
-            print("time %dms: Simulator for SRT ended " % timer, end='')
-            print_queue(waiting_processes)
-            break
-        for p in waiting_processes:
-            p.waiting_t += 1
-        for p in cpu_process:
-            if timer in defrag_t:
-                p.waiting_t += 1
-            else:
-                p.burst_t_rmn -= 1
-                if p.burst_t_rmn == 0:
-                    if timer + 1 not in events:
-                        events[timer + 1] = {}
-                    events[timer + 1]['pc'] = True
-        timer += 1
 
-    # r.write('Algorithm SRT\n')
-    # analysis(all_process, r)
+    for algo in placement_algorithm:
+        Memory.algorithm = algo
+        Process.n_cs = 0
+        waiting_processes = []
+        for process in all_process:
+            process.reset()
+        memory.reset()
+        defrag_t = []
+
+        timer = 0
+        events.clear()
+        events = {0: {}}
+        print("time %dms: Simulator started for SRT and %s" % (timer, Memory.algorithm))
+        while True:
+            if len(defrag_t) > 0 and timer == defrag_t[-1] + 1:
+                defrag_t = []
+                print("time %dms: Completed defragmentation (moved %d memory units)" % (timer, len(defrag_t) / t_memmove))
+                print("time %dms: Simulated Memory:" % timer)
+                print(memory)
+            for p in all_process:
+                if p.arrival_t == timer:
+                    if timer in defrag_t:
+                        p.arrival_t = defrag_t
+                        continue
+                    if memory.place(p.pid, p.memory):
+                        waiting_processes.append(p)
+                        print("time %dms: Process '%s' added to system" % (timer, p.pid), end='')
+                        print_queue(waiting_processes)
+                        print("time %dms: Simulated Memory:" % timer)
+                        print(memory)
+                        if timer not in events:
+                            events[timer] = {}
+                        events[timer]['pa'] = True
+                    else:
+                        print("time %dms: Process '%s' unable to be added; lack of memory " % (timer, p.pid))
+                        print("time %dms: Starting defragmentation (suspending all processes)" % timer)
+                        print("time %dms: Simulated Memory:" % timer)
+                        print(memory)
+                        defrag_t = range(timer, timer + t_memmove * memory.defrag())
+                        print(defrag_t)
+                        p.arrival_t = defrag_t[-1] + 1
+            if timer in events:
+                srt(events, timer, waiting_processes, cpu_process, io_list, cs, t_cs, memory, defrag_t)
+            if not waiting_processes and not cpu_process and not io_list and not cs:
+                print("time %dms: Simulator for SRT ended " % timer, end='')
+                print_queue(waiting_processes)
+                break
+            for p in waiting_processes:
+                p.waiting_t += 1
+            for p in cpu_process:
+                if timer in defrag_t:
+                    p.waiting_t += 1
+                else:
+                    p.burst_t_rmn -= 1
+                    if p.burst_t_rmn == 0:
+                        if timer + 1 not in events:
+                            events[timer + 1] = {}
+                        events[timer + 1]['pc'] = True
+            timer += 1
+
+        print("\n\n")
+
+        # r.write('Algorithm SRT\n')
+        # analysis(all_process, r)
+
 
     Process.algorithm = 'RR'
-    Process.n_cs = 0
-    waiting_processes = []
-    for process in all_process:
-        process.reset()
-    memory.reset()
+    for algo in placement_algorithm:
+        Memory.algorithm = algo
+        Process.n_cs = 0
+        waiting_processes = []
+        for process in all_process:
+            process.reset()
+        memory.reset()
 
-    timer = 0
-    events.clear()
-    events = {0: {}}
-    print("time %dms: Simulator started for RR (t_slice 80) and %s" % (timer, Memory.algorithm))
-    while True:
-        if defrag_t and timer == defrag_t[-1] + 1:
-            defrag_t = []
-            print("time %dms: Completed defragmentation (moved %d memory units)" % (timer, len(defrag_t) / t_memmove))
-            print("time %dms: Simulated Memory:" % timer)
-            print(memory)
-        for p in all_process:
-            if p.arrival_t == timer:
-                if timer in defrag_t:
-                    p.arrival_t = defrag_t
-                    continue
-                if memory.place(p.pid, p.memory):
-                    waiting_processes.append(p)
-                    print("time %dms: Process '%s' added to system" % (timer, p.pid), end='')
-                    print_queue(waiting_processes)
-                    print("time %dms: Simulated Memory:" % timer)
-                    print(memory)
-                    if timer not in events:
-                        events[timer] = {}
-                    events[timer]['pa'] = True
-                else:
-                    print("time %dms: Process '%s' unable to be added; lack of memory " % (timer, p.pid))
-                    print("time %dms: Starting defragmentation (suspending all processes)" % timer)
-                    print("time %dms: Simulated Memory:" % timer)
-                    print(memory)
-                    defrag_t = range(timer, timer + t_memmove * memory.defrag())
-                    print(defrag_t)
-                    p.arrival_t = defrag_t[-1] + 1
-        if timer in events:
-            rr(events, timer, waiting_processes, cpu_process, io_list, cs, t_cs, t_slice, memory, defrag_t)
-        if not waiting_processes and not cpu_process and not io_list and not cs:
-            print("time %dms: Simulator for RR ended " % timer, end='')
-            print_queue(waiting_processes)
-            break
-        for p in waiting_processes:
-            p.waiting_t += 1
-        for p in cpu_process:
-            if timer in defrag_t:
+        timer = 0
+        events.clear()
+        events = {0: {}}
+        print("time %dms: Simulator started for RR (t_slice 80) and %s" % (timer, Memory.algorithm))
+        while True:
+            if len(defrag_t) > 0 and timer == defrag_t[-1] + 1:
+                defrag_t = []
+                print("time %dms: Completed defragmentation (moved %d memory units)" % (timer, len(defrag_t) / t_memmove))
+                print("time %dms: Simulated Memory:" % timer)
+                print(memory)
+            for p in all_process:
+                if p.arrival_t == timer:
+                    if timer in defrag_t:
+                        p.arrival_t = defrag_t
+                        continue
+                    if memory.place(p.pid, p.memory):
+                        waiting_processes.append(p)
+                        print("time %dms: Process '%s' added to system" % (timer, p.pid), end='')
+                        print_queue(waiting_processes)
+                        print("time %dms: Simulated Memory:" % timer)
+                        print(memory)
+                        if timer not in events:
+                            events[timer] = {}
+                        events[timer]['pa'] = True
+                    else:
+                        print("time %dms: Process '%s' unable to be added; lack of memory " % (timer, p.pid))
+                        print("time %dms: Starting defragmentation (suspending all processes)" % timer)
+                        print("time %dms: Simulated Memory:" % timer)
+                        print(memory)
+                        defrag_t = range(timer, timer + t_memmove * memory.defrag())
+                        print(defrag_t)
+                        p.arrival_t = defrag_t[-1] + 1
+            if timer in events:
+                rr(events, timer, waiting_processes, cpu_process, io_list, cs, t_cs, t_slice, memory, defrag_t)
+            if not waiting_processes and not cpu_process and not io_list and not cs:
+                print("time %dms: Simulator for RR ended " % timer, end='')
+                print_queue(waiting_processes)
+                break
+            for p in waiting_processes:
                 p.waiting_t += 1
-            else:
-                p.burst_t_rmn -= 1
-                p.slice_rmn -= 1
-                if p.burst_t_rmn == 0:
-                    if timer + 1 not in events:
-                        events[timer + 1] = {}
-                    events[timer + 1]['pc'] = True
-                elif p.slice_rmn == 0:
-                    if timer + 1 not in events:
-                        events[timer + 1] = {}
-                    events[timer + 1]['slice'] = True
-        timer += 1
+            for p in cpu_process:
+                if timer in defrag_t:
+                    p.waiting_t += 1
+                else:
+                    p.burst_t_rmn -= 1
+                    p.slice_rmn -= 1
+                    if p.burst_t_rmn == 0:
+                        if timer + 1 not in events:
+                            events[timer + 1] = {}
+                        events[timer + 1]['pc'] = True
+                    elif p.slice_rmn == 0:
+                        if timer + 1 not in events:
+                            events[timer + 1] = {}
+                        events[timer + 1]['slice'] = True
+            timer += 1
 
+        print('\n\n')
 
     f.close()
 
