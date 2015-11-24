@@ -293,16 +293,20 @@ def rr(events, timer, waiting_processes, cpu_process, io_list, cs, t_cs, t_slice
             print_queue(waiting_processes)
 
     if 'slice' in event:
-        process = cpu_process.pop()
-        waiting_processes.append(process)
-        print("time %dms: Process '%s' preempted due to time slice expiration" % (timer, process.pid), end='')
-        print_queue(waiting_processes)
         if waiting_processes:
-            process2 = waiting_processes.pop(0)
-            cs.append(process2)
-            if timer + t_cs not in events:
-                events[timer + t_cs] = {}
-            events[timer + t_cs]['ps'] = True
+            process = cpu_process.pop()
+            waiting_processes.append(process)
+            print("time %dms: Process '%s' preempted due to time slice expiration" % (timer, process.pid), end='')
+            print_queue(waiting_processes)
+            if waiting_processes:
+                process2 = waiting_processes.pop(0)
+                cs.append(process2)
+                if timer + t_cs not in events:
+                    events[timer + t_cs] = {}
+                events[timer + t_cs]['ps'] = True
+        else:
+            process = cpu_process[0]
+            process.slice_rmn = t_slice
 
     if 'pc' in event and cpu_process and cpu_process[0].burst_t_rmn == 0:
         process = cpu_process.pop()
