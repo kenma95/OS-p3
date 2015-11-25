@@ -1,4 +1,10 @@
-from collections import deque
+"""
+Team Member:
+    Yunang Chen
+    Ruiqi Ma
+
+This project is written in Python 3.
+"""
 import sys
 
 
@@ -196,9 +202,6 @@ def srt(events, timer, waiting_processes, cpu_process, io_list, cs, t_cs, memory
             cpu_process.append(process)
             print("time %dms: Process '%s' started using the CPU " % (timer, process.pid), end='')
             print_queue(waiting_processes)
-            # if timer + process.burst_t_rmn not in events:
-            #     events[timer + process.burst_t_rmn] = {}
-            # events[timer + process.burst_t_rmn]['pc'] = True
 
     if 'pc' in event and cpu_process and cpu_process[0].burst_t_rmn == 0:
         process = cpu_process.pop()
