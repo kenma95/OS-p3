@@ -414,10 +414,10 @@ def main():
         print("time %dms: Simulator started for SRT and %s" % (timer, Memory.algorithm))
         while True:
             if len(defrag_t) > 0 and timer == defrag_t[-1] + 1:
-                defrag_t = []
                 print("time %dms: Completed defragmentation (moved %d memory units)" % (timer, len(defrag_t) / t_memmove))
                 print("time %dms: Simulated Memory:" % timer)
                 print(memory)
+                defrag_t = []
             for p in all_process:
                 if p.arrival_t == timer:
                     if timer in defrag_t:
@@ -438,7 +438,6 @@ def main():
                         print("time %dms: Simulated Memory:" % timer)
                         print(memory)
                         defrag_t = range(timer, timer + t_memmove * memory.defrag())
-                        print(defrag_t)
                         p.arrival_t = defrag_t[-1] + 1
             if timer in events:
                 srt(events, timer, waiting_processes, cpu_process, io_list, cs, t_cs, memory, defrag_t)
@@ -480,10 +479,10 @@ def main():
         print("time %dms: Simulator started for RR (t_slice 80) and %s" % (timer, Memory.algorithm))
         while True:
             if len(defrag_t) > 0 and timer == defrag_t[-1] + 1:
-                defrag_t = []
                 print("time %dms: Completed defragmentation (moved %d memory units)" % (timer, len(defrag_t) / t_memmove))
                 print("time %dms: Simulated Memory:" % timer)
                 print(memory)
+                defrag_t = []
             for p in all_process:
                 if p.arrival_t == timer:
                     if timer in defrag_t:
@@ -504,7 +503,6 @@ def main():
                         print("time %dms: Simulated Memory:" % timer)
                         print(memory)
                         defrag_t = range(timer, timer + t_memmove * memory.defrag())
-                        print(defrag_t)
                         p.arrival_t = defrag_t[-1] + 1
             if timer in events:
                 rr(events, timer, waiting_processes, cpu_process, io_list, cs, t_cs, t_slice, memory, defrag_t)
