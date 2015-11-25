@@ -16,7 +16,7 @@ class Process:
         self.total_waiting_t = 0
         self.queue_n = -1
         self.slice_rmn = 80
-        self.ent_queue_t = 0
+        self.ent_queue_t = self.arrival_t
         self.total_turnaround_t = 0
 
     def reset(self):
@@ -25,7 +25,7 @@ class Process:
         self.burst_t_rmn = self.burst_t
         self.waiting_t = 0
         self.total_waiting_t = 0
-        self.ent_queue_t = 0
+        self.ent_queue_t = self.arrival_t
         self.total_turnaround_t = 0
 
     def compute_burst(self):
@@ -107,10 +107,13 @@ class Memory:
             while i < self.size:
                 start, end = self.next_free_partitions(i, p_size)
                 if start != -1:
+                    if free_spaces and (start, end) == free_spaces[0]:
+                        break
                     free_spaces.append((start, end))
                     i = end + 1
                 else:
                     break
+
             free_spaces.sort(key=lambda index: index[1] - index[0])
             if len(free_spaces) == 0:
                 return False
@@ -243,6 +246,18 @@ def srt(events, timer, waiting_processes, cpu_process, io_list, cs, t_cs, memory
                         print_queue(waiting_processes)
                         process2 = waiting_processes.pop(0)
                         cs.append(process2)
+                        if timer + t_cs not in events:
+                            events[timer + t_cs] = {}
+                        events[timer + t_cs]['ps'] = True
+                    elif cpu_process and process.burst_t < cpu_process[0].burst_t_rmn and timer not in defrag_t:
+                        process = waiting_processes.pop(0)
+                        print_queue(waiting_processes)
+                        process2 = cpu_process.pop()
+                        waiting_processes.append(process2)
+                        waiting_processes.sort()
+                        cs.append(process)
+                        print("time %dms: Process '%s' preempted by Process '%s' " % (timer, process2.pid, process.pid), end='')
+                        print_queue(waiting_processes)
                         if timer + t_cs not in events:
                             events[timer + t_cs] = {}
                         events[timer + t_cs]['ps'] = True
@@ -460,9 +475,8 @@ def main():
 
         print("\n\n")
 
-        # r.write('Algorithm SRT\n')
-        # analysis(all_process, r)
-
+        r.write('Algorithm SRT and %s\n' % Memory.algorithm)
+        analysis(all_process, r)
 
     Process.algorithm = 'RR'
     for algo in placement_algorithm:
@@ -528,6 +542,8 @@ def main():
                         events[timer + 1]['slice'] = True
             timer += 1
 
+        r.write('Algorithm RR and %s\n' % Memory.algorithm)
+        analysis(all_process, r)
         print('\n\n')
 
     f.close()
