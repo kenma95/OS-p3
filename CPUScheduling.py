@@ -287,7 +287,7 @@ def analysis(all_process, f):
     f.write('-- average CPU burst time: %.2f ms\n' % burst_t_avg)
     f.write('-- average wait time: %.2f ms\n' % wait_t_avg)
     f.write('-- average turnaround time: %.2f ms\n' % turnaround_t_avg)
-    f.write('-- total number of context switches: %d\n\n' % Process.n_cs)
+    f.write('-- total number of context switches: %d\n' % Process.n_cs)
 
 
 def rr(events, timer, waiting_processes, cpu_process, io_list, cs, t_cs, t_slice, memory, defrag_t):
@@ -412,6 +412,7 @@ def main():
         all_process.append(process)
         waiting_processes.append(process)
         n += 1
+    latest_arrival = max([process.arrival_t for process in all_process])
 
     Process.algorithm = "SRT"
     Process.n_cs = 0
@@ -425,6 +426,7 @@ def main():
             process.reset()
         memory.reset()
         defrag_t = []
+        tot_defrag_t = 0
 
         timer = 0
         events.clear()
@@ -456,10 +458,11 @@ def main():
                         print("time %dms: Simulated Memory:" % timer)
                         print(memory)
                         defrag_t = range(timer, timer + t_memmove * memory.defrag())
+                        tot_defrag_t += len(defrag_t)
                         p.arrival_t = defrag_t[-1] + 1
             if timer in events:
                 srt(events, timer, waiting_processes, cpu_process, io_list, cs, t_cs, memory, defrag_t)
-            if not waiting_processes and not cpu_process and not io_list and not cs:
+            if not waiting_processes and not cpu_process and not io_list and not cs and timer > latest_arrival:
                 print("time %dms: Simulator for SRT ended " % timer, end='')
                 print_queue(waiting_processes)
                 break
@@ -480,6 +483,7 @@ def main():
 
         r.write('Algorithm SRT and %s\n' % Memory.algorithm)
         analysis(all_process, r)
+        r.write('Defragmentation Time: %d ms (%.2f%% of total simulation time)\n\n' % (tot_defrag_t, 100 * tot_defrag_t / timer))
 
     Process.algorithm = 'RR'
     for algo in placement_algorithm:
@@ -489,6 +493,8 @@ def main():
         for process in all_process:
             process.reset()
         memory.reset()
+        defrag_t = []
+        tot_defrag_t = 0
 
         timer = 0
         events.clear()
@@ -520,10 +526,11 @@ def main():
                         print("time %dms: Simulated Memory:" % timer)
                         print(memory)
                         defrag_t = range(timer, timer + t_memmove * memory.defrag())
+                        tot_defrag_t += len(defrag_t)
                         p.arrival_t = defrag_t[-1] + 1
             if timer in events:
                 rr(events, timer, waiting_processes, cpu_process, io_list, cs, t_cs, t_slice, memory, defrag_t)
-            if not waiting_processes and not cpu_process and not io_list and not cs:
+            if not waiting_processes and not cpu_process and not io_list and not cs and timer > latest_arrival:
                 print("time %dms: Simulator for RR ended " % timer, end='')
                 print_queue(waiting_processes)
                 break
@@ -547,6 +554,7 @@ def main():
 
         r.write('Algorithm RR and %s\n' % Memory.algorithm)
         analysis(all_process, r)
+        r.write('Defragmentation Time: %d ms (%.2f%% of total simulation time)\n\n' % (tot_defrag_t, 100 * tot_defrag_t / timer))
         print('\n\n')
 
     f.close()
