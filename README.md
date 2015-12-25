@@ -1,7 +1,7 @@
 # CS4210 Project3 Fall 2015
 
 ###Usage
-Run the Python script *CPUScheduling.py* in Python 2.0 terminal.
+Run the Python script *CPUScheduling.py* in Python 3.x terminal.
 
 The input text file proccess.txt must also be included in the same folder.
 
